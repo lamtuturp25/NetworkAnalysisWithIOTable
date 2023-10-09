@@ -1,0 +1,285 @@
+---
+title: IDENTIFIKASI STRUKTUR EKONOMI SEKTORAL DAN REGIONAL SELURUH PROVINSI DI INDONESIA
+  MENGGUNAKAN ANALISIS NETWORK
+author: "Lamtutur Sri Paulina Pasaribu"
+date: "2022-12-20"
+output: html_document
+---
+# _Latar Belakang_
+  Tabel input-output merupakan alat yang pada umumnya digunakan untuk mendukung analisis hubungan antar sektor dalam perekonomian daerah, nasional, maupun internasional. Analisis tabel input-output dapat memberikan wawasan yang berguna tentang ukuran industri, strategi pengembangan sehubungan dengan struktur produksi yang berbeda, dan efek potensial dari perluasan satu sektor pada sektor lainnya (Cuello et al., 1992). Analisis yang biasa diterapkan pada tabel input-output adalah (L., 1952) dengan menghitung matriks Leontief dan efek pengganda. Meskipun demikian, analisis ini bergantung pada besarnya sektor secara absolut atau relatif, tanpa memperhitungkan karakteristik heterogen seperti peran khususnya dalam interkonektivitas dan stabilitas sistem ekonomi secara keseluruhan. Selain itu, ini mengasumsikan adanya skala hasil konstan dan berkonsentrasi pada efek rata-rata (bukan marjinal) dari perubahan permintaan satu sektor pada sektor lain dan perekonomian nasional. 
+  Metode analisis network (Newman, 2003) dapat mengatasi beberapa masalah tersebut, dengan mempertimbangkan masalah sentralitas dan efek clustering. Dalam analisis network, sistem ekonomi nasional dimodelkan sebagai jaringan yang kompleks, sektor sebagai node (vertex) dan transaksi penjualan/pembelian sebagai edges (line) serta jumlah/besar transaksi sebagai weight. Pendekatan yang diusulkan dapat dengan tepat mewakili saling ketergantungan multisektoral dan potensi pengaruh satu sektor terhadap sektor lain yang signifikan dan/atau kelompok sektor. Selain itu, dapat membantu mengidentifikasi sektor-sektor penting yang terkait dengan ketahanan sistem ekonomi secara keseluruhan. 
+
+
+# _Tujuan_
+  penelitian ini bertujuan untuk mengidentifikasi struktur perekonomian Indonesia dengan menyelidiki sektor-sektor utama pada seluruh provinsi di Indonesia, interaksi antar sektor, interaksi dalam kelompok sektor, serta membuat peringkat sektor-sektor mana yang paling memiliki pengaruh pada perekonomian Indonesia dengan menggunakan analisis network pada tabel Inter Regional Input-Output (IRIO) Indonesia. 
+  
+# _Metode_
+  Analisis Network dengan menggunakan ukuran sentralitas berupa weighted betweenness centrality (WBC), Random walk centrality (RWC), dan PageRank centrality (PRC).
+  Deteksi komunitas dengan membandingkan metode community detection yang populer, yakni fastgreedy community (Clauset et al., 2004), walktrap community (Pons & Latapy, 2006), 2005], infomap community (Rosvall & Bergstrom, 2008). Metode terpilih adalah metode dengan modularitas tertinggi.
+
+# _Bahan_ 
+  Data yang digunakan dalam penelitian ini bersumber dari Badan Statistik Indonesia berupa tabel Inter Regional Input-Output (IRIO) Indonesia transaksi domestik atas dasar harga produsen menurut 34 provinsi dan 17 lapangan usaha tahun 2016.
+
+# _Tahapan Analisis Pembangunan Network dari IRIO_
+##Muat library yang akan digunakan
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(igraph)
+library(qgraph)
+library(RColorBrewer)
+library(circlize)
+library(ggraph)
+library(RSpectra)
+library(Matrix)
+library(snap)
+library(motifcluster)
+library(backbone)
+library(reshape2)
+library(ggplot2)
+library(plotly)
+library(pheatmap)
+```
+
+##Muat data
+Link data yang sudah re-processing dulu dengan bantuan excel
+https://docs.google.com/spreadsheets/d/1MAVZuutH8ooFCpjxb4C-k5hUvinSFfZW/edit?usp=share_link&ouid=111294746475645744788&rtpof=true&sd=true
+
+```{r}
+#vertex
+irio_b <-  read_excel("io_bersih.xlsx", 
+                      sheet = "DATA")##treshold 100 juta #data dalam triliunan rupiah
+#node
+node <-  read_delim("prov_sektor.csv", 
+                    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+##Data Pre-Processing
+```{r}
+irio_b<-dplyr::select(irio_b,-...1)
+row.names(irio_b)<-colnames(irio_b)
+iriob_m<-as.matrix(irio_b)
+View(irio_b)
+
+iriob_df<-melt(iriob_m)
+View(iriob_df)
+iriob_df<-subset(iriob_df,value>0)##menghilangkan nilai 0 = tdk ada hub
+```
+
+##Membuat Objek Igraph
+```{r}
+n_irio<-graph_from_data_frame(iriob_df, directed=TRUE, vertices = node)
+n_iriod<-graph_from_data_frame(iriob_df, directed=FALSE, vertices = node)##jika diperlukan
+E(n_irio)$weight<-E(n_irio)$value
+E(n_iriod)$weight<-E(n_iriod)$value
+```
+
+  Selanjutnya untuk kepentingan analisis akan dilakukan beberapa visualisasi data IRIO.
+
+##Visualisasi IRIO menggunakan Chord Diagram
+  Visualisasi data menggunakan chord diagram menggunakan data yang sudah diaggregatkan
+Link data:
+https://docs.google.com/spreadsheets/d/1MAVZuutH8ooFCpjxb4C-k5hUvinSFfZW/edit?usp=share_link&ouid=111294746475645744788&rtpof=true&sd=true
+
+```{r}
+agg_sektor<- read_excel("io_bersih.xlsx", 
+                        sheet = "agg_sektor") ##aggegat bedasarkan sektor
+agg_sektor<-dplyr::select(agg_sektor,-...1)
+row.names(agg_sektor)=colnames(agg_sektor)
+aggsektor_m<-as.matrix(agg_sektor)
+diag(aggsektor_m)=0
+
+agg_prov <- read_excel("io_bersih.xlsx", 
+                        sheet = "agg_prov") ##aggregat berdasarkan provinsi
+agg_prov<-dplyr::select(agg_prov,-...1)
+row.names(agg_prov)<-colnames(agg_prov)
+aggprov_m<-as.matrix(agg_prov)
+diag(aggprov_m)=0
+
+chordDiagram(aggsektor_m)
+chordDiagram(aggprov_m)
+```
+
+##Membuat tambahan visualisasi untuk mengetahui topologi dasar network 
+  Visualisasi ini hanya pada provinsi dengan 10 PDRB tertinggi
+Link data:
+1. https://docs.google.com/spreadsheets/d/1xhkgdtQwNKRr5TQmhWazRQe_ShBipsEk/edit?usp=share_link&ouid=111294746475645744788&rtpof=true&sd=true
+2. https://docs.google.com/spreadsheets/d/1XoOGN7pJafc9ojJm_Y-4FcPabmEaqIam/edit?usp=share_link&ouid=111294746475645744788&rtpof=true&sd=true
+
+```{r}
+##membuat topology dari network untuk provinsi dengan 10 besar teratas dalam PDB
+irio10besardf <- read_excel("irio10besar.xlsx")
+irio10besardf<-dplyr::select(irio10besardf,-...1)
+vertex10besarpdb <- read_excel("vertex10besarpdb.xlsx")
+
+irio10besardf<-subset(irio10besardf,value>0)
+irio10besardf_g<-graph_from_data_frame(irio10besardf, directed=TRUE, vertices =vertex10besarpdb)
+
+E(irio10besardf_g)$weight<-E(irio10besardf_g)$value
+irio10besardf_g
+
+display.brewer.all() ###pilih warna/palette yang diinginkan
+pal_<-brewer.pal(length(unique(V(irio10besardf_g)$provinsi)), "Paired") # Vertex color assigned per each class number
+
+plot(irio10besardf_g,edge.color = 'gray', vertex.label.color="black",
+     vertex.label.cex =0.7, vertex.label.font=2,vertex.label.dist=1,
+     vertex.color=pal_[as.numeric(as.factor(vertex_attr(irio10besardf_g, "provinsi")))],
+     vertex.size=7,vertex.label.dist=0.05,edge.arrow.size=0.05,edge.arrow.width=0.05,    
+     layout = layout_with_lgl)
+```
+
+
+##Eksplorasi Objek Igraph
+```{r}
+#1. Ringkasan Igraph
+n_irio
+gsize(n_irio)
+gorder(n_irio)
+
+#2. List dari node
+V(n_irio)
+
+#3. List dari edge
+E(n_irio)
+
+#4. Atribut lain dalam Igraph
+V(n_irio)$provinsi
+V(n_irio)$sektor
+
+#5. Matriks Adjacency
+n_irio[c(1:10),c(1:10)]
+
+```
+
+##Ukuran Centrality
+```{r}
+#Random Walk Centrality (RCW)
+#sebelum membuat formula RWC buat dulu formula Mean First Pass Time (MFPT)
+## Formula dari Mean First Pass Time
+mfpt <- function(A) {
+  A <- as.matrix(A)  
+  n = nrow(A) 
+  rrss = rowSums(A)
+  for (i in 1:n) {
+    if (rrss[i] != 0) {
+      rrss[i] = 1/rrss[i]
+    }
+  }
+  AA = diag(n) - diag(rrss) %*% A 
+  H = matrix(0, n, n)
+  I = solve(AA[-1,-1])            
+  ones = matrix(1, n-1, 1)       
+  for (i in 1:n) {
+    H[-i,i] = I %*% ones    
+    if (i < n){
+      u = AA[-(i+1),i] - AA[-i, (i+1)]
+      I = I - ((I*u) * I[i,]) / (1 + (I[i,] * u))
+      v = AA[i, -(i+1)] - AA[(i+1), -i]
+      I = I - ((I[,i] * (v * I)) / 1 + v * I[,i])
+      if (AA[(i+1),(i+1)]!=1){
+        I = solve(AA[-(i+1),-(i+1)], tol = 1e-29)
+      }
+      if (any(is.infinite(I))) {        ## tidak akan bekerja jika I(i,j)=infinity
+        I[is.infinite(I)] <- 0    
+      }
+    }
+  }
+  H <<- H 
+}
+
+## Formula Random Walk Centrality
+rwc <- function(A) {
+  nn = nrow(A)
+  cen = matrix(0,nn,1)
+  m <- mfpt(A)   # H from mfpt{}
+  for (j in 1:nn) {
+    if (all(H[j,] == (c(rep(1,(j-1)),0,rep(1,(nn-j)))))) {  
+      cen[j] = 0  
+    } else {
+      cen[j] = nn / sum(m[,j])
+    }
+  }
+  cen <<- cen
+}
+
+#RWC
+n_irio_rwc<- rwc(iriob_m)#menggunakan matriks bukan objek Igraph
+n_irio_rwc
+
+#Weighted betweeness
+wbetweenness<- betweenness(n_irio, directed = T, weights = E(n_irio)$weight, normalized = T) 
+
+#PageRank (damping=0.85)
+wpagerank<- (page_rank(n_irio,directed=T,weights = E(n_irio)$weight,damping=0.85 ))$vector
+
+#membuat mejadi data frame
+n_irio_eig<-as.data.frame(n_irio_eig)
+n_irio_rwc<-as.data.frame(n_irio_rwc)
+n_irio_wb<-as.data.frame(wbetweenness)
+n_irio_wp<-as.data.frame(wpagerank)
+
+#mengconvert output ke ke file CSV
+write.csv(n_irio_eig,"eigen1.csv")
+write.csv(n_irio_rwc,"rwc1.csv")
+write.csv(n_irio_wb,"wb.csv")
+write.csv(n_irio_wp,"wp.csv")
+```
+
+##Deteksi Komunitas
+  Deteksi komunitas dengan membandingkan beberapa metode dengan modularitas
+tertinggi terpilih sebagai alat untuk identifikasi komunitas pada Network IRIO
+List Metode:
+1. fastgreedy.community [Clauset et al., 2004] 
+2. walktrap.community [Pons and Latapy, 2005]
+3. infomap.community [Rosvall and Bergstrom, 2008]
+```{r}
+infomap<-infomap.community (n_irio) 
+modularity(infomap)
+
+wc<-walktrap.community(n_irio)
+modularity(wc)
+
+net <- simplify(n_iriod, remove.multiple = T,remove.loops = F)
+fc<-fastgreedy.community(net)
+modularity(fc)
+```
+  Karena yang didapatkan modularitas terbesar adalah metode fastgreedy.community. Maka akan menggunakan metode tersebut untuk identifikasi komunitas pada network IRIO.
+```{r}
+
+membership(fc)
+mfc<-as.matrix(membership(fc))
+
+#Mengkonversi hasil idetifikasi komunitas ke CSV
+mfc<-as.data.frame(mfc)
+write.csv(mfc,"mfc.csv")
+```
+
+  Dari hasil identifikasi komunitas, untuk membuat visualisasi menggunakan heatmap dari komunitas yang ada dilakukan transformasi data dengan bantuan excel agar bisa divisualisasikan, yakni akan dibuat berbentuk matriks dengan kolom adalah provinsi dan baris adalah sektor. 
+Link data komunitas yang sudah dilakukan transformasi:
+https://docs.google.com/spreadsheets/d/1So1Bca4A_68qQbTTY5YtriLRy4iDpM4a/edit?usp=sharing&ouid=111294746475645744788&rtpof=true&sd=true
+
+  Setelah selesai mengubah struktur data muat data tersebut lagi ke R dan lakukan visualisasi menggunakan heatmap
+  
+###Visualisasi komunitas menggunakan heatmap
+```{r}
+komunitas_fc <- read_excel("cluster fc.xlsx")
+sektor <- read_excel("cluster fc.xlsx", 
+                         sheet = "Sheet3")
+row.names(komunitas_fc)=colnames(sektor)
+cluster_fc<-as.matrix(komunitas_fc)
+View(komunitas_fc)
+
+#membuat warna
+cl <- colors(distinct = TRUE)
+set.seed(15887) # to set random generator seed
+mycols2 <- sample(cl, 20)
+
+#visualisasi
+pheatmap(cluster_fc,legend=FALSE,cluster_row=FALSE,cluster_cols = FALSE)
+```
+
+# _Kesimpulan_
+  Sektor yang sensitifit pada pada perubahan positif maupun negatif dalam perekonomian adalah didominasi oleh sektor sekunder dan tersier, yakni industri pengolahan, perdagangan besar dan eceran, dan administrasi pemerintahan, pertahanan dan jaminan sosial wajib serta daerah-daerah dengan peringkat tertinggi didominasi oleh provinsi-provinsi di Pulau Jawa dan terendah didominasi oleh provinsi-provinsi di bagian timur Indonesia. Selanjutnya sektor dengan peringkat tertinggi dalam hal memiliki hubungan dengan sektor penting lainnya adalah didominasi oleh sektor industri pengolahan dan konstruksi, serta wilayahnya didominasi oleh provinsi-provinsi di Pulau Jawa.  Selanjutnya sektor dengan peringkat tertinggi dalam hal kemampuannya untuk mempengaruhi sumber daya di antara sektor-sektor lain, dengan memfasilitasi, menengahi, menghambat atau memodifikasi adalah sektor industri pengolahan, konstruksi, transportasi dan pergudangan, jasa keuangan dan asuransi. Selanjutnya dalam hal interaksi antar sektor, hasil penelitian ini menunjukkan sektor-sektor yang berada pada provinsi yang sama dan memiliki jarak geografis yang dekat cenderung lebih sering berinteraksi satu sama lain. 
